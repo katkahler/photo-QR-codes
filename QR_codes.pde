@@ -1,13 +1,12 @@
 PImage img;
-color[][] energies;
 color[][] finals;
 
 void setup() {
   size(500, 500);
   img = loadImage("aot.jpg");
   img.resize(500, 500);
-  energies = new color[width][height];
   finals = new color[width][height];
+  energize();
   noLoop();
 }
 
@@ -41,33 +40,30 @@ color apply(int _x, int _y) {
 void energize() {
   for (int x = 0; x < width; x++) {
     for (int y = 0; y < height; y++) {
-      energies[x][y] = color(map(apply(x, y), 0, 20000, 0, 255));
-    }
-  }
-}
-
-void recolor() {
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      color c = color(energies[i][j]);
-      if (c > 50) {
-        finals[i][j] = color(0,0,0);
-      } else {
-        finals[i][j] = color(255, 255, 255);
-      }
+      set(x, y, color(map(apply(x, y), 0, 20000, 0, 255)));
     }
   }
 }
 
 
 void draw() {
-  energize();
-  recolor();
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      color c = color(get(i, j));
+
+      if (red(c) < 50) { //if black
+        finals[i][j] = 255; //set white
+      } else { //if white
+        finals[i][j] = 0; //set black
+      }
+    }
+  }
 
   for (int x = 0; x < width; x++) {
     for (int y = 0; y < height; y++) {
-      set(x, y, finals[x][y]);
+      set(x, y, color(finals[x][y], finals[x][y], finals[x][y]));
     }
   }
+
 }
 
