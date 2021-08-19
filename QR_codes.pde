@@ -1,69 +1,135 @@
 PImage img;
-color[][] finals;
+int pointCount = 100;
+int centCount = 2;
+int voxelSize = 10; //div by 10
+int cornerSize = voxelSize*10; //div by 10
+int cornersWidth = cornerSize-cornerSize/8;
+
+int xMax, yMax;
+
+ArrayList<Column> columns;
+Point[] centroids = new Point[centCount];  // ARRAY of rgb triplets
+Point[][] points2d = new Point[500][500];
 
 void setup() {
-  size(500, 500);
-  img = loadImage("aot.jpg");
-  img.resize(500, 500);
-  finals = new color[width][height];
-  energize();
-  noLoop();
-}
+  size(500, 500); 
+  noStroke();
+  //stroke(255,0,0); //check if corners align
+  xMax = width/voxelSize;
+  yMax = height/voxelSize;
 
-color apply(int _x, int _y) {
-  color left = img.get(_x-1, _y);
-  color right = img.get(_x+1, _y);
-  color up = img.get(_x, _y-1);
-  color down = img.get(_x, _y+1);
+  img = loadImage("armin.jpg");
+  img.resize(500, 0);
 
-  int rx = round(red(left)-red(right));
-  rx = rx * rx;
-  int ry = round(red(up)-red(down));
-  ry = ry * ry;
-
-  int gx = round(green(left)-green(right));
-  gx = gx * gx;
-  int gy = round(green(up)-green(down));
-  gy = gy * gy;
-
-  int bx = round(blue(left)-blue(right));
-  bx = bx * bx;
-  int by = round(blue(up)-blue(down));
-  by = by * by;
-
-  int hx = rx + gx + bx;
-  int vx = ry + gy + by;
-
-  return hx + vx;
-}
-
-void energize() {
-  for (int x = 0; x < width; x++) {
-    for (int y = 0; y < height; y++) {
-      set(x, y, color(map(apply(x, y), 0, 20000, 0, 255)));
+  for (int x = 0; x < 500; x++) { //creating the points
+    for (int y = 0; y < 500; y++) {
+      points2d[x][y] = new Point(red(img.get(x, y)), green(img.get(x, y)), blue(img.get(x, y)));
     }
   }
+
+  for (int ce = 0; ce < centroids.length; ce++) { //creating the centroids
+    color imgget = img.get(round(random(0, 500)), round(random(0, 500)));
+    centroids[ce] = new Point(red(imgget), green(imgget), blue(imgget));
+  }
+
+  assign(); 
+
+  for (int x = 0; x < 500; x++) {
+    for (int y = 0; y < 500; y++) {
+      points2d[x][y].display(x, y);
+    }
+  }
+
+  //APPLYING K-MEANS
+  boolean changed = true;
+  while (changed) {
+    for (int cent = 0; cent < centroids.length; cent++) {  // recalculate centroid means
+      findMeans();
+    }
+    changed = assign(); //reassign points to centroids
+  }
+
+
+  //VOXELIZING
+  columns = new ArrayList<Column>();
+  int numRows = width / voxelSize;
+  int numColumns = height / voxelSize;
+
+  for (int x = 0; x < numColumns; x++) {
+    color[] voxelList = new color[numRows];
+    for (int y = 0; y < numRows; y++) {
+      int centroid = points2d[x * voxelSize][y * voxelSize].myCentroidIndex;
+      color c = color(centroids[centroid].r, centroids[centroid].g, centroids[centroid].b);
+      voxelList[y] = c;
+    }
+    Column c = new Column(x, voxelList);
+    columns.add(c);
+  }
+
+  for (Column c : columns) {
+    c.displayColumn(); //draw the columns of voxels
+  } 
+  
+  fill(255);
+  square(0,0,cornerSize);
+  square(width-cornerSize, 0, cornerSize);
+  square(0, height-cornerSize, cornerSize);
+  corner(0,0,cornerSize-cornerSize/8);
+  corner(width-cornersWidth, 0, cornersWidth);
+  corner(0,height-cornersWidth, cornersWidth);
+
 }
 
-
-void draw() {
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      color c = color(get(i, j));
-
-      if (red(c) < 50) { //if black
-        finals[i][j] = 255; //set white
-      } else { //if white
-        finals[i][j] = 0; //set black
+boolean assign() {
+  boolean changed = false;
+  for (int x = 0; x < 500; x++) {
+    for (int y = 0; y <500; y++) {
+      int oldCentroid = points2d[x][y].myCentroidIndex;
+      float id = 1000000;
+      for (int c = 0; c < centroids.length; c++) {
+        float d = dist(points2d[x][y].r, points2d[x][y].g, points2d[x][y].b, centroids[c].r, centroids[c].g, centroids[c].b);
+        if (d < id) {
+          points2d[x][y].myCentroidIndex = c;
+          id = dist(points2d[x][y].r, points2d[x][y].g, points2d[x][y].b, centroids[c].r, centroids[c].g, centroids[c].b);
+        }
       }
+      if (points2d[x][y].myCentroidIndex != oldCentroid)
+        changed = true;
     }
   }
-
-  for (int x = 0; x < width; x++) {
-    for (int y = 0; y < height; y++) {
-      set(x, y, color(finals[x][y], finals[x][y], finals[x][y]));
-    }
-  }
-
+  return changed;
 }
 
+void findMeans() {
+  float sumR[] = new float[centCount];
+  float sumG[] = new float[centCount];
+  float sumB[] = new float[centCount];
+  float total[] = new float[centCount];
+
+  for (int x = 0; x < 500; x++) {
+    for (int y = 0; y < 500; y++) {
+      Point pgp = points2d[x][y];
+      sumR[pgp.myCentroidIndex] += pgp.r;
+      sumG[pgp.myCentroidIndex] += pgp.g;
+      sumB[pgp.myCentroidIndex] += pgp.b;
+      total[pgp.myCentroidIndex] += 1;
+    }
+  }
+
+  for (int c = 0; c < centroids.length; c++) {
+    centroids[c].r = sumR[c] / total[c];
+    centroids[c].g = sumG[c] / total[c];
+    centroids[c].b = sumB[c] / total[c];
+  }
+}
+
+void corner(float _x, float _y, float size){
+  fill(0);
+square(_x, _y, size);
+fill(255);
+square(_x + size/8, _y + size/8, size-size/4);
+fill(0);
+square(_x + size/4, _y + size/4, size-size/2);
+
+
+}
